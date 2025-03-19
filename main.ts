@@ -88,7 +88,25 @@ const toISOTimestamp = (timestamp: number): string => {
 
 export default new Elysia()
   .use(cors())
-  .use(swagger() as any)
+  .use(
+    swagger({
+      documentation: {
+        info: {
+          title: "Inventorygarten backend",
+          description: "API for Inventorygarten",
+          version: "0.0.1",
+        },
+      },
+    }) as any
+  )
+  .get(
+    "/",
+    () =>
+      new Response(null, {
+        status: 302,
+        headers: { Location: "/swagger" },
+      })
+  )
   .get(
     "/items",
     async ({ query }): Promise<Item[]> => {
