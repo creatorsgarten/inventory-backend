@@ -45,14 +45,14 @@ const fetchTags = async (): Promise<GristTag[]> => {
 
 // Types matching the commons/types.ts file
 enum TagType {
-  Item = "ITEM",
-  Container = "CONTAINER",
+  Item = "item",
+  Container = "container",
 }
 
 enum PossessionType {
-  Unspecified = "UNSPECIFIED",
-  User = "USER",
-  Container = "CONTAINER",
+  Unspecified = "unspecified",
+  User = "user",
+  Container = "container",
 }
 
 interface Item {
