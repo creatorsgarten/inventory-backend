@@ -88,17 +88,6 @@ const toISOTimestamp = (timestamp: number): string => {
 
 export default new Elysia()
   .use(cors())
-  .use(
-    swagger({
-      documentation: {
-        info: {
-          title: "Inventorygarten backend",
-          description: "API for Inventorygarten",
-          version: "0.0.1",
-        },
-      },
-    }) as any
-  )
   .get(
     "/",
     () =>
@@ -115,7 +104,7 @@ export default new Elysia()
       return items
         .map((item): Item => {
           const tag = tagMap.get(item.Tag);
-          console.log(item);
+          const itemTags = tag ? [tag.ID2] : [];
           return {
             id: item.ID2,
             name: item.Name,
@@ -123,7 +112,7 @@ export default new Elysia()
             notes: "",
             imageUrl: undefined,
             type: TagType.Item,
-            tags: tag ? [tag.ID2] : [],
+            tags: itemTags,
             possession: {
               type: PossessionType.Unspecified,
               id: "",
@@ -132,11 +121,41 @@ export default new Elysia()
             updatedAt: toISOTimestamp(item.UpdatedAt),
           };
         })
-        .filter((item) => !query.id || item.id === query.id);
+        .filter((item) => {
+          // Filter by ID if specified
+          if (query.id) {
+            const queryIds = query.id.split(",");
+            if (!queryIds.includes(item.id)) {
+              return false;
+            }
+          }
+
+          // Filter by tags if specified
+          if (query.tags) {
+            const queryTags = query.tags.split(",");
+            return queryTags.some((tag) => item.tags?.includes(tag));
+          }
+
+          return true;
+        });
     },
     {
+      detail: {
+        description:
+          "Retrieves a list of items from the inventory. Can be filtered by item ID or by tags.",
+      },
       query: t.Object({
-        id: t.Optional(t.String()),
+        id: t.Optional(
+          t.String({
+            description: "Filter by item ID(s). Accepts comma-separated values",
+          })
+        ),
+        tags: t.Optional(
+          t.String({
+            description:
+              "Comma-separated list of tag IDs to filter by. Returns items that have any of the specified tags.",
+          })
+        ),
       }),
     }
   )
@@ -161,8 +180,27 @@ export default new Elysia()
         .filter((tag) => !query.id || tag.id === query.id);
     },
     {
+      detail: {
+        description:
+          "Retrieves a list of tags used in the inventory system. Can be filtered by tag ID.",
+      },
       query: t.Object({
-        id: t.Optional(t.String()),
+        id: t.Optional(
+          t.String({
+            description: "Filter by exact tag ID",
+          })
+        ),
       }),
     }
+  )
+  .use(
+    swagger({
+      documentation: {
+        info: {
+          title: "Inventorygarten backend",
+          description: "API for Inventorygarten",
+          version: "0.0.1",
+        },
+      },
+    })
   );
