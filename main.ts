@@ -86,6 +86,25 @@ const toISOTimestamp = (timestamp: number): string => {
   return new Date(timestamp * 1000).toJSON();
 };
 
+class Filters<T> {
+  criteria: ((item: T) => boolean)[] = [];
+  addCriteria(criteria: (item: T) => boolean) {
+    this.criteria.push(criteria);
+  }
+  match(item: T): boolean {
+    return this.criteria.every((criteria) => criteria(item));
+  }
+
+  static in<T>(values: string[], getter: (item: T) => string | string[]) {
+    const set = new Set(values);
+    return (item: T) => {
+      const result = getter(item);
+      const values = Array.isArray(result) ? result : [result];
+      return values.some((value) => set.has(value));
+    };
+  }
+}
+
 export default new Elysia()
   .use(cors())
   .get(
@@ -101,6 +120,17 @@ export default new Elysia()
     async ({ query }): Promise<Item[]> => {
       const [items, tags] = await Promise.all([fetchItems(), fetchTags()]);
       const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
+
+      const filters = new Filters<Item>();
+      if (query.id) {
+        const queryIds = query.id.split(",");
+        filters.addCriteria(Filters.in(queryIds, (item) => item.id));
+      }
+      if (query.tag) {
+        const queryTags = query.tag.split(",");
+        filters.addCriteria(Filters.in(queryTags, (item) => item.tags || []));
+      }
+
       return items
         .map((item): Item => {
           const tag = tagMap.get(item.Tag);
@@ -121,23 +151,7 @@ export default new Elysia()
             updatedAt: toISOTimestamp(item.UpdatedAt),
           };
         })
-        .filter((item) => {
-          // Filter by ID if specified
-          if (query.id) {
-            const queryIds = query.id.split(",");
-            if (!queryIds.includes(item.id)) {
-              return false;
-            }
-          }
-
-          // Filter by tags if specified
-          if (query.tags) {
-            const queryTags = query.tags.split(",");
-            return queryTags.some((tag) => item.tags?.includes(tag));
-          }
-
-          return true;
-        });
+        .filter((item) => filters.match(item));
     },
     {
       detail: {
@@ -150,7 +164,7 @@ export default new Elysia()
             description: "Filter by item ID(s). Accepts comma-separated values",
           })
         ),
-        tags: t.Optional(
+        tag: t.Optional(
           t.String({
             description:
               "Comma-separated list of tag IDs to filter by. Returns items that have any of the specified tags.",
@@ -166,6 +180,11 @@ export default new Elysia()
       const itemByTag = new Map<number, string>(
         items.map((item) => [item.Tag, item.ID2])
       );
+      const filters = new Filters<Tag>();
+      if (query.id) {
+        const queryIds = query.id.split(",");
+        filters.addCriteria(Filters.in(queryIds, (tag) => tag.id));
+      }
 
       return tags
         .map((tag): Tag => {
@@ -177,7 +196,7 @@ export default new Elysia()
             updatedAt: toISOTimestamp(tag.UpdatedAt),
           };
         })
-        .filter((tag) => !query.id || tag.id === query.id);
+        .filter((tag) => filters.match(tag));
     },
     {
       detail: {
@@ -187,7 +206,8 @@ export default new Elysia()
       query: t.Object({
         id: t.Optional(
           t.String({
-            description: "Filter by exact tag ID",
+            description:
+              "Filter by exact tag ID(s). Accepts comma-separated values",
           })
         ),
       }),
@@ -202,5 +222,5 @@ export default new Elysia()
           version: "0.0.1",
         },
       },
-    })
+    }) as any
   );
